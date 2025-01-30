@@ -16,7 +16,9 @@ ENV PATH="/usr/lib/mvn/bin:${PATH}"
 
 # Copy source code and package the application
 COPY . /opt/app
-#RUN mvn clean package -DskipTests && ls -l target/
+
+# Build the application (skip tests for faster builds)
+#RUN mvn clean package -DskipTests
 
 # Extract dependencies for jlink
 RUN jdeps --ignore-missing-deps -q --recursive --multi-release 17 --print-module-deps \
@@ -24,7 +26,7 @@ RUN jdeps --ignore-missing-deps -q --recursive --multi-release 17 --print-module
 
 RUN echo "java.base" > modules.txt
 
-# Build minimal JRE
+# Build minimal JRE using jlink
 RUN $JAVA_HOME/bin/jlink \
     --verbose \
     --add-modules $(cat modules.txt) \
@@ -34,28 +36,26 @@ RUN $JAVA_HOME/bin/jlink \
     --compress=2 \
     --output /optimized-jdk-17
 
-# Second stage: Use custom JRE and run the app
-FROM alpine:latest
-ENV JAVA_HOME=/opt/jdk/jdk-17
+# Second stage: Use custom JRE and run the app using scratch image
+FROM scratch
+
+# Copy the minimal JRE from the build stage
+COPY --from=jre-builder /optimized-jdk-17 /opt/jdk
+
+# Set JAVA_HOME and PATH
+ENV JAVA_HOME=/opt/jdk
 ENV PATH="${JAVA_HOME}/bin:${PATH}"
 
-# Copy the minimal JRE
-COPY --from=jre-builder /optimized-jdk-17 $JAVA_HOME
+# Use the nobody user in scratch (no shell or utilities)
+USER nobody
 
-# Create app user
-ARG APPLICATION_USER=spring
-RUN addgroup --system $APPLICATION_USER && adduser --system $APPLICATION_USER --ingroup $APPLICATION_USER
-
-# Create application directory
-RUN mkdir /app && chown -R $APPLICATION_USER /app
-
-# Copy the built JAR file correctly
+# Copy the built JAR file from the build stage to the /app directory
 COPY --from=jre-builder /opt/app/target/igloo-auth-engine-service-0.0.1-SNAPSHOT.jar /app/igloo-auth-engine-service-0.0.1-SNAPSHOT.jar
 
-
 WORKDIR /app
-USER $APPLICATION_USER
 
 EXPOSE 8080
+
+# Set entrypoint
 ENTRYPOINT [ "java", "-jar", "/app/igloo-auth-engine-service-0.0.1-SNAPSHOT.jar" ]
 
