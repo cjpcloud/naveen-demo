@@ -16,11 +16,13 @@ ENV PATH="/usr/lib/mvn/bin:${PATH}"
 
 # Copy source code and package the application
 COPY . /opt/app
-RUN mvn clean package -DskipTests && ls -l target/
+#RUN mvn clean package -DskipTests && ls -l target/
 
 # Extract dependencies for jlink
 RUN jdeps --ignore-missing-deps -q --recursive --multi-release 17 --print-module-deps \
-    --class-path 'BOOT-INF/lib/*' target/sample-0.0.1-SNAPSHOT.jar > modules.txt
+    --class-path 'BOOT-INF/lib/*' target/igloo-auth-engine-service-0.0.1-SNAPSHOT.jar > modules.txt
+
+RUN echo "java.base" > modules.txt
 
 # Build minimal JRE
 RUN $JAVA_HOME/bin/jlink \
@@ -48,12 +50,12 @@ RUN addgroup --system $APPLICATION_USER && adduser --system $APPLICATION_USER --
 RUN mkdir /app && chown -R $APPLICATION_USER /app
 
 # Copy the built JAR file correctly
-COPY --from=jre-builder /opt/app/target/sample-0.0.1-SNAPSHOT.jar /app/sample-0.0.1-SNAPSHOT.jar
+COPY --from=jre-builder /opt/app/target/igloo-auth-engine-service-0.0.1-SNAPSHOT.jar /app/igloo-auth-engine-service-0.0.1-SNAPSHOT.jar
 
 
 WORKDIR /app
 USER $APPLICATION_USER
 
 EXPOSE 8080
-ENTRYPOINT [ "java", "-jar", "/app/sample-0.0.1-SNAPSHOT.jar" ]
+ENTRYPOINT [ "java", "-jar", "/app/igloo-auth-engine-service-0.0.1-SNAPSHOT.jar" ]
 
